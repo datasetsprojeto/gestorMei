@@ -1,5 +1,3 @@
-from flask import current_app
-
 from app.extensions import bcrypt
 from app.models.user import User
 
@@ -30,12 +28,6 @@ def verify_owner_password(user, plain_password):
         is_valid = False
 
     if is_valid:
-        return True, owner, None
-
-    # Compatibilidade opcional para ambiente legado, desabilitado por padrão.
-    allow_legacy = bool(current_app.config.get("ALLOW_LEGACY_OWNER_DELETE_PASSWORD", False))
-    legacy_password = str(current_app.config.get("OWNER_DELETE_PASSWORD", "")).strip()
-    if allow_legacy and legacy_password and password == legacy_password:
         return True, owner, None
 
     return False, owner, "Senha de proprietário inválida."

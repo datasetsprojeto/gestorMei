@@ -1,0 +1,77 @@
+openapi: 3.0.3
+info:
+  title: GestorMEI API
+  version: 1.1.0
+  description: API para gestão de vendas, estoque e colaboradores.
+servers:
+  - url: http://localhost:5000
+paths:
+  /health:
+    get:
+      summary: Health check principal
+      responses:
+        '200':
+          description: API saudável
+  /health/live:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Processo ativo
+  /health/ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Banco pronto
+        '503':
+          description: Dependência indisponível
+  /auth/login:
+    post:
+      summary: Autenticar usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login realizado
+        '401':
+          description: Credenciais inválidas
+  /products:
+    get:
+      summary: Listar produtos
+      responses:
+        '200':
+          description: Lista de produtos
+    post:
+      summary: Criar produto
+      responses:
+        '201':
+          description: Produto criado
+  /sales:
+    get:
+      summary: Listar vendas
+      responses:
+        '200':
+          description: Lista de vendas
+    post:
+      summary: Registrar venda
+      responses:
+        '201':
+          description: Venda criada
+  /employees:
+    get:
+      summary: Listar funcionários vinculados
+      responses:
+        '200':
+          description: Funcionários retornados

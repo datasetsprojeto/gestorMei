@@ -21,6 +21,16 @@ cd backend
 python -m pip install -r requirements.txt -r requirements_test.txt
 ```
 
+## Qualidade frontend (vite + lint + build)
+
+```bash
+cd frontend
+npm install
+npm run lint
+npm run typecheck
+npm run build
+```
+
 ## Executar backend
 
 ```bash
@@ -85,6 +95,17 @@ Abra `frontend/index.html` no navegador com a API rodando. O frontend consome a 
 - registro de venda
 - dashboard com metricas reais
 - exportacoes de dados (JSON)
+
+## Segurança e observabilidade (produção)
+
+Variáveis relevantes em `backend/.env.example`:
+
+- `CORS_ORIGINS` (restringir para domínio frontend real)
+- `ENABLE_SECURITY_HEADERS=True`
+- `LOG_JSON=True` (opcional para logs estruturados)
+- `TRUST_PROXY_HEADERS=True` (apenas atrás de proxy confiável)
+
+A API também retorna `X-Request-ID` em cada resposta para rastreamento.
 
 ## Endpoints principais
 
@@ -170,6 +191,17 @@ O workflow `.github/workflows/backend-ci.yml` agora possui:
 - job de testes deterministicos
 - job de integracao com service container PostgreSQL
 - bootstrap da API Flask no CI e execucao de `test_api.py`
+
+## OpenAPI
+
+Especificação inicial disponível em `backend/openapi.yaml`.
+
+## Compliance (modelos iniciais)
+
+Na raiz do projeto:
+
+- `docs/privacy-policy.md`
+- `docs/terms-of-service.md`
 
 ## Direcionamento de mercado aplicado
 

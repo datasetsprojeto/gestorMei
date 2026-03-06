@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 import logging
 from datetime import datetime
+from uuid import uuid4
 from .extensions import db, jwt, bcrypt, migrate
 from .routes.health import health_bp
 from .routes.auth import auth_bp
@@ -36,13 +37,19 @@ def create_app(config_name="development"):
     app.url_map.strict_slashes = False
     
     # Configurar logging
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    if app.config.get('LOG_JSON'):
+        log_format = '{"timestamp":"%(asctime)s","logger":"%(name)s","level":"%(levelname)s","message":"%(message)s"}'
+
     logging.basicConfig(
         level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format=log_format
     )
 
-    # Permite frontend local (arquivo estatico / localhost) consumir a API
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    cors_origins = [origin.strip() for origin in app.config.get('CORS_ORIGINS', []) if origin.strip()]
+    if not cors_origins:
+        cors_origins = ["http://localhost:5501"]
+    CORS(app, resources={r"/*": {"origins": cors_origins}})
     
     # Inicializar extensões
     db.init_app(app)
@@ -63,13 +70,30 @@ def create_app(config_name="development"):
     # Middleware para logging
     @app.before_request
     def log_request():
+        request_id = request.headers.get('X-Request-ID') or str(uuid4())
+        g.request_id = request_id
+
         if request.path != '/health':
-            app.logger.info(f"{request.method} {request.path} - {request.remote_addr}")
+            app.logger.info(
+                f"request_id={request_id} method={request.method} path={request.path} remote={request.remote_addr}"
+            )
     
     @app.after_request
     def log_response(response):
+        request_id = getattr(g, 'request_id', None)
+        if request_id:
+            response.headers['X-Request-ID'] = request_id
+
+        if app.config.get('ENABLE_SECURITY_HEADERS', True):
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+
         if request.path != '/health':
-            app.logger.info(f"{request.method} {request.path} - Status: {response.status_code}")
+            app.logger.info(
+                f"request_id={request_id} method={request.method} path={request.path} status={response.status_code}"
+            )
         return response
     
     # Handlers de erro global

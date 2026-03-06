@@ -44,6 +44,12 @@ class Config:
     
     # Logging
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_JSON = os.getenv("LOG_JSON", "False").lower() == "true"
+
+    # CORS and security headers
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5501").split(",")
+    ENABLE_SECURITY_HEADERS = os.getenv("ENABLE_SECURITY_HEADERS", "True").lower() == "true"
+    TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "False").lower() == "true"
 
     # SMTP / E-mail
     SMTP_HOST = os.getenv("SMTP_HOST") or os.getenv("MAIL_SERVER")
@@ -60,11 +66,6 @@ class Config:
     
     # Upload
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
-
-    # Confirmação de exclusão de produtos
-    OWNER_DELETE_PASSWORD = os.getenv("OWNER_DELETE_PASSWORD", "senha123")
-    ALLOW_LEGACY_OWNER_DELETE_PASSWORD = os.getenv("ALLOW_LEGACY_OWNER_DELETE_PASSWORD", "False").lower() == "true"
-
 
 class DevelopmentConfig(Config):
     """Configurações de desenvolvimento"""
