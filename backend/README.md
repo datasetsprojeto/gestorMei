@@ -140,6 +140,37 @@ Requisitos:
 - `DATABASE_URL` configurada para PostgreSQL
 - `pg_dump` disponivel no PATH
 
+### 4) Restore de backup PostgreSQL
+
+Script utilitario criado em `backend/scripts/restore_postgres.py`.
+
+Uso com arquivo especifico:
+
+```bash
+cd backend
+python scripts/restore_postgres.py backups/gestormei_20260305_120000.dump
+```
+
+Uso com pasta (restaura o dump mais recente):
+
+```bash
+cd backend
+python scripts/restore_postgres.py backups
+```
+
+Requisitos:
+
+- `DATABASE_URL` configurada para PostgreSQL
+- `pg_restore` disponivel no PATH
+
+### 5) CI com PostgreSQL + teste de API
+
+O workflow `.github/workflows/backend-ci.yml` agora possui:
+
+- job de testes deterministicos
+- job de integracao com service container PostgreSQL
+- bootstrap da API Flask no CI e execucao de `test_api.py`
+
 ## Direcionamento de mercado aplicado
 
 O produto foi ajustado para os pontos mais exigidos hoje por pequenos negocios:
