@@ -154,6 +154,7 @@ def create_app(config_name="development"):
         from app.models.sale import Sale
         from app.models.sale_item import SaleItem
         from app.models.monthly_snapshot import MonthlySnapshot
+        from app.models.audit_log import AuditLog
         
         return {
             'db': db,
@@ -161,7 +162,8 @@ def create_app(config_name="development"):
             'Product': Product,
             'Sale': Sale,
             'SaleItem': SaleItem,
-            'MonthlySnapshot': MonthlySnapshot
+            'MonthlySnapshot': MonthlySnapshot,
+            'AuditLog': AuditLog
         }
     
     return app

@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.product import Product
+from app.services.audit_service import log_audit
 
 employee_bp = Blueprint("employees", __name__, url_prefix="/employees")
 
@@ -95,6 +96,14 @@ def link_employee():
         return jsonify({"error": "Este funcionário já está vinculado a outro proprietário."}), 409
 
     employee.owner_id = user.id
+    log_audit(
+        owner_id=user.id,
+        actor_user_id=user.id,
+        action="employee.link",
+        resource_type="employee",
+        resource_id=str(employee.id),
+        details={"email": employee.email, "auto_created": bool(generated_password)},
+    )
     db.session.commit()
 
     response = {
@@ -123,6 +132,14 @@ def unlink_employee(employee_id):
         return jsonify({"error": "Funcionário vinculado não encontrado."}), 404
 
     employee.owner_id = None
+    log_audit(
+        owner_id=user.id,
+        actor_user_id=user.id,
+        action="employee.unlink",
+        resource_type="employee",
+        resource_id=str(employee.id),
+        details={"email": employee.email},
+    )
     db.session.commit()
 
     return jsonify({

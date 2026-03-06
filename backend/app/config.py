@@ -63,6 +63,7 @@ class Config:
 
     # Confirmação de exclusão de produtos
     OWNER_DELETE_PASSWORD = os.getenv("OWNER_DELETE_PASSWORD", "senha123")
+    ALLOW_LEGACY_OWNER_DELETE_PASSWORD = os.getenv("ALLOW_LEGACY_OWNER_DELETE_PASSWORD", "False").lower() == "true"
 
 
 class DevelopmentConfig(Config):

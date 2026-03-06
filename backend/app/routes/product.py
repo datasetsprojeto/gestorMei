@@ -2,7 +2,12 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.product import Product
+from app.models.sale import Sale
+from app.models.sale_item import SaleItem
+from app.models.monthly_snapshot import MonthlySnapshot
 from app.models.user import User
+from app.security import verify_owner_password
+from app.services.audit_service import log_audit
 
 product_bp = Blueprint("products", __name__, url_prefix="/products")
 
@@ -314,10 +319,11 @@ def delete_product(product_id):
         force_delete = request.args.get("force", "false").strip().lower() == "true"
         data = request.get_json(silent=True) or {}
         owner_password = str(data.get("owner_password", "")).strip()
-        expected_password = str(current_app.config.get("OWNER_DELETE_PASSWORD", "senha123")).strip()
 
-        if owner_password != expected_password:
-            return jsonify({"error": "Senha de proprietário inválida."}), 403
+        current_user = User.query.get(current_user_id)
+        ok_password, owner_user, password_error = verify_owner_password(current_user, owner_password)
+        if not ok_password:
+            return jsonify({"error": password_error}), 403
         
         product = Product.query.filter_by(id=product_id, user_id=user_id).first()
         
@@ -331,6 +337,14 @@ def delete_product(product_id):
         if product.sale_items:
             product.is_active = False
             product.stock = 0
+            log_audit(
+                owner_id=owner_user.id,
+                actor_user_id=current_user_id,
+                action="product.archive",
+                resource_type="product",
+                resource_id=str(product_id),
+                details={"reason": "has_sales", "sales_count": len(product.sale_items)},
+            )
             db.session.commit()
             return jsonify({
                 "message": "Produto arquivado com sucesso (mantido no histórico de vendas)",
@@ -345,6 +359,15 @@ def delete_product(product_id):
                 "requires_force": True,
                 "current_stock": int(product.stock)
             }), 409
+
+        log_audit(
+            owner_id=owner_user.id,
+            actor_user_id=current_user_id,
+            action="product.delete",
+            resource_type="product",
+            resource_id=str(product_id),
+            details={"force_delete": bool(force_delete), "product_name": product.name},
+        )
         
         db.session.delete(product)
         db.session.commit()
@@ -357,3 +380,69 @@ def delete_product(product_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erro ao excluir produto: {str(e)}"}), 500
+
+
+# ======================
+# LIMPAR CACHE DE DADOS DO NEGÓCIO
+# ======================
+@product_bp.route("/cache/clear-data", methods=["POST"])
+@jwt_required()
+def clear_workspace_data_cache():
+    try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+
+        if current_user.owner_id is not None:
+            return jsonify({"error": "Somente o proprietário pode limpar os dados."}), 403
+
+        data = request.get_json(silent=True) or {}
+        owner_password = str(data.get("owner_password", "")).strip()
+        ok_password, owner_user, password_error = verify_owner_password(current_user, owner_password)
+        if not ok_password:
+            return jsonify({"error": password_error}), 403
+
+        owner_id = current_user.id
+
+        sale_ids_subquery = db.session.query(Sale.id).filter(Sale.user_id == owner_id).subquery()
+
+        deleted_sale_items = SaleItem.query.filter(
+            SaleItem.sale_id.in_(db.session.query(sale_ids_subquery.c.id))
+        ).delete(synchronize_session=False)
+
+        deleted_sales = Sale.query.filter(Sale.user_id == owner_id).delete(synchronize_session=False)
+        deleted_products = Product.query.filter(Product.user_id == owner_id).delete(synchronize_session=False)
+        deleted_snapshots = MonthlySnapshot.query.filter(
+            MonthlySnapshot.user_id == owner_id
+        ).delete(synchronize_session=False)
+
+        log_audit(
+            owner_id=owner_user.id,
+            actor_user_id=current_user_id,
+            action="workspace.clear_operational_data",
+            resource_type="workspace",
+            resource_id=str(owner_id),
+            details={
+                "deleted_sale_items": int(deleted_sale_items or 0),
+                "deleted_sales": int(deleted_sales or 0),
+                "deleted_products": int(deleted_products or 0),
+                "deleted_monthly_snapshots": int(deleted_snapshots or 0),
+            },
+        )
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Dados operacionais limpos com sucesso. Usuários foram preservados.",
+            "deleted": {
+                "sale_items": int(deleted_sale_items or 0),
+                "sales": int(deleted_sales or 0),
+                "products": int(deleted_products or 0),
+                "monthly_snapshots": int(deleted_snapshots or 0),
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Erro ao limpar dados operacionais: {str(e)}"}), 500

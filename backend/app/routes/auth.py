@@ -1,17 +1,70 @@
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.extensions import db, bcrypt
 from app.models.user import User
+from app.models.audit_log import AuditLog
+from app.services.audit_service import log_audit
 from app.services.email_service import send_password_email, EmailServiceError
 import re
 import logging
 import secrets
 import string
+from datetime import datetime, timedelta
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 # Configurar logger específico para auth
 logger = logging.getLogger(__name__)
+
+_LOGIN_ATTEMPTS = {}
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_WINDOW_MINUTES = 15
+
+
+def _workspace_owner_id(user):
+    if not user:
+        return None
+    return user.owner_id if user.owner_id else user.id
+
+
+def _login_attempt_key(email):
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "unknown"
+    return f"{ip}|{email}"
+
+
+def _is_login_rate_limited(email):
+    key = _login_attempt_key(email)
+    state = _LOGIN_ATTEMPTS.get(key)
+    now = datetime.utcnow()
+    if not state:
+        return False, 0
+
+    reset_at = state.get("reset_at")
+    if not reset_at or now >= reset_at:
+        _LOGIN_ATTEMPTS.pop(key, None)
+        return False, 0
+
+    attempts = int(state.get("count", 0))
+    remaining = max(0, _MAX_LOGIN_ATTEMPTS - attempts)
+    return attempts >= _MAX_LOGIN_ATTEMPTS, remaining
+
+
+def _register_login_attempt(email):
+    key = _login_attempt_key(email)
+    now = datetime.utcnow()
+    state = _LOGIN_ATTEMPTS.get(key)
+    if not state or now >= state.get("reset_at", now):
+        _LOGIN_ATTEMPTS[key] = {
+            "count": 1,
+            "reset_at": now + timedelta(minutes=_LOGIN_WINDOW_MINUTES),
+        }
+        return
+    state["count"] = int(state.get("count", 0)) + 1
+
+
+def _clear_login_attempts(email):
+    key = _login_attempt_key(email)
+    _LOGIN_ATTEMPTS.pop(key, None)
 
 # Validação de email
 def is_valid_email(email):
@@ -48,6 +101,19 @@ def generate_temporary_password(length=12):
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def validate_password(password):
+    if password is None:
+        return "Senha inválida"
+    password = str(password)
+    if not password:
+        return "Senha inválida"
+    if len(password) < 6:
+        return "Senha deve ter pelo menos 6 caracteres"
+    if not any(ch.isdigit() for ch in password):
+        return "Senha deve conter pelo menos um número"
+    return None
+
+
 # ======================
 # REGISTRO
 # ======================
@@ -66,10 +132,11 @@ def register():
         name = data.get("name")
         email = data.get("email")
         phone = data.get("phone")
+        explicit_password = data.get("password")
 
         # Validações básicas
-        if not name or not email or not phone:
-            return jsonify({"error": "Nome, e-mail e telefone sao obrigatorios"}), 400
+        if not name or not email:
+            return jsonify({"error": "Nome e e-mail são obrigatórios"}), 400
         
         # Limpar e validar nome
         name = str(name).strip()
@@ -81,9 +148,9 @@ def register():
         if not is_valid_email(email):
             return jsonify({"error": "Email invalido"}), 400
 
-        # Limpar e validar telefone
-        phone = normalize_phone(str(phone))
-        if not is_valid_phone(phone):
+        # Limpar e validar telefone (opcional)
+        phone = normalize_phone(str(phone or ""))
+        if phone and not is_valid_phone(phone):
             return jsonify({"error": "Telefone invalido"}), 400
 
         # Verificar se email já existe
@@ -91,18 +158,24 @@ def register():
         if existing_user:
             return jsonify({"error": "Email já cadastrado"}), 409
 
-        # Gerar senha temporaria e enviar e-mail antes de persistir usuario
-        password_str = generate_temporary_password()
-        try:
-            send_password_email(
-                current_app.config,
-                to_email=email,
-                user_name=name,
-                generated_password=password_str,
-            )
-        except EmailServiceError as e:
-            logger.error(f"Falha de envio de e-mail no registro: {str(e)}")
-            return jsonify({"error": "Nao foi possivel enviar a senha por e-mail. Verifique SMTP."}), 500
+        if explicit_password:
+            password_error = validate_password(explicit_password)
+            if password_error:
+                return jsonify({"error": password_error}), 400
+            password_str = str(explicit_password)
+        else:
+            # Fluxo padrão: senha gerada e enviada por e-mail.
+            password_str = generate_temporary_password()
+            try:
+                send_password_email(
+                    current_app.config,
+                    to_email=email,
+                    user_name=name,
+                    generated_password=password_str,
+                )
+            except EmailServiceError as e:
+                logger.error(f"Falha de envio de e-mail no registro: {str(e)}")
+                return jsonify({"error": "Nao foi possivel enviar a senha por e-mail. Verifique SMTP."}), 500
 
         # Criar hash da senha - garantir UTF-8
         try:
@@ -124,7 +197,8 @@ def register():
         db.session.commit()
 
         return jsonify({
-            "message": "Conta criada com sucesso. A senha foi enviada para o e-mail informado.",
+            "message": "Conta criada com sucesso."
+            if explicit_password else "Conta criada com sucesso. A senha foi enviada para o e-mail informado.",
             "user": user.to_dict()
         }), 201
         
@@ -158,6 +232,13 @@ def login():
         
         # Limpar email
         email = str(email).strip().lower()
+
+        is_limited, remaining = _is_login_rate_limited(email)
+        if is_limited:
+            return jsonify({
+                "error": "Muitas tentativas de login. Tente novamente em alguns minutos.",
+                "remaining_attempts": remaining,
+            }), 429
         
         # Validar formato do email
         if not is_valid_email(email):
@@ -171,6 +252,7 @@ def login():
         error_msg = "Credenciais inválidas"
         
         if not user:
+            _register_login_attempt(email)
             logger.warning(f"Tentativa de login com email não cadastrado: {email}")
             return jsonify({"error": error_msg}), 401
         
@@ -202,8 +284,21 @@ def login():
             return jsonify({"error": error_msg}), 401
         
         if not is_valid:
+            _register_login_attempt(email)
+            owner_id = _workspace_owner_id(user)
+            if owner_id:
+                log_audit(
+                    owner_id=owner_id,
+                    actor_user_id=user.id,
+                    action="auth.login_failed",
+                    resource_type="auth",
+                    resource_id=str(user.id),
+                    details={"reason": "invalid_password"},
+                )
             logger.warning(f"Tentativa de login com senha incorreta para: {email}")
             return jsonify({"error": error_msg}), 401
+
+        _clear_login_attempts(email)
 
         # Gerar token de acesso
         access_token = create_access_token(
@@ -214,16 +309,59 @@ def login():
             }
         )
 
+        owner_id = _workspace_owner_id(user)
+        if owner_id:
+            log_audit(
+                owner_id=owner_id,
+                actor_user_id=user.id,
+                action="auth.login_success",
+                resource_type="auth",
+                resource_id=str(user.id),
+                details={"email": user.email},
+            )
+
         return jsonify({
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": 3600,  # 1 hora em segundos
             "user": user.to_dict()
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Erro no login: {str(e)}", exc_info=True)
         return jsonify({"error": "Erro ao realizar login"}), 500
+
+
+@auth_bp.route("/audit-logs", methods=["GET"])
+@jwt_required()
+def list_audit_logs():
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"error": "Usuário não encontrado"}), 404
+    if user.owner_id is not None:
+        return jsonify({"error": "Apenas o proprietário pode visualizar auditoria."}), 403
+
+    limit = min(500, max(1, int(request.args.get("limit", 100))))
+    action = str(request.args.get("action", "")).strip()
+
+    query = AuditLog.query.filter_by(owner_id=user.id)
+    if action:
+        query = query.filter(AuditLog.action == action)
+
+    logs = query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return jsonify({"logs": [entry.to_dict() for entry in logs]}), 200
+
+
+@auth_bp.route("/test", methods=["GET"])
+def auth_test():
+    return jsonify({"status": "ok", "module": "auth"}), 200
+
+
+@auth_bp.route("/verify", methods=["GET"])
+def auth_verify():
+    # Endpoint de compatibilidade para verificações simples de disponibilidade.
+    return jsonify({"status": "ok", "authenticated": False}), 200
 
 
 # ======================
