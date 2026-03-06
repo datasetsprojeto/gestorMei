@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host --port 5501",
-    "build": "vite build",
+    "build": "node ./scripts/build-static.mjs",
     "preview": "vite preview --host --port 5501",
     "lint": "eslint .",
     "format": "prettier --write .",
