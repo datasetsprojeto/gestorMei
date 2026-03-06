@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import json
 
 from app.extensions import db
+
+
+def utc_now():
+    return datetime.now(UTC)
 
 
 class AuditLog(db.Model):
@@ -16,7 +20,7 @@ class AuditLog(db.Model):
     details_json = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(64), nullable=True)
     user_agent = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now, index=True)
 
     def set_details(self, details):
         if details is None:

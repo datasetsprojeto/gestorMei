@@ -1,5 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from app.extensions import db
+
+
+def utc_now():
+    return datetime.now(UTC)
 
 
 class MonthlySnapshot(db.Model):
@@ -12,7 +16,7 @@ class MonthlySnapshot(db.Model):
     total_sales = db.Column(db.Integer, nullable=False, default=0)
     total_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     gross_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
-    saved_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    saved_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "year", "month", name="uq_monthly_snapshot_user_period"),

@@ -1,5 +1,9 @@
 from app.extensions import db
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def utc_now():
+    return datetime.now(UTC)
 
 class User(db.Model):
     __tablename__ = "users"
@@ -10,7 +14,7 @@ class User(db.Model):
     phone = db.Column(db.String(30), nullable=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
     # Relações
     products = db.relationship("Product", backref="owner", lazy=True, cascade="all, delete-orphan")

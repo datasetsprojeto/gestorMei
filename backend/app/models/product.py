@@ -1,5 +1,9 @@
 from app.extensions import db
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def utc_now():
+    return datetime.now(UTC)
 
 class Product(db.Model):
     __tablename__ = "products"
@@ -13,7 +17,7 @@ class Product(db.Model):
     max_stock = db.Column(db.Integer, nullable=False, default=100)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     
     # Relações
     sale_items = db.relationship("SaleItem", backref="product", lazy=True, cascade="all, delete-orphan")

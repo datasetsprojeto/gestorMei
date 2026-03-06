@@ -6,6 +6,7 @@ Teste específico para verificar conexão com banco
 
 import sys
 import os
+from sqlalchemy import text
 from app import create_app
 from app.extensions import db
 from app.models.user import User
@@ -19,9 +20,15 @@ def test_database_connection():
     with app.app_context():
         try:
             # 1. Testar conexão básica
-            print("\n1. Testando conexão com PostgreSQL...")
-            result = db.session.execute("SELECT version()").fetchone()
-            print(f"   ✅ PostgreSQL conectado: {result[0]}")
+            dialect = db.engine.dialect.name
+            print(f"\n1. Testando conexão com banco ({dialect})...")
+
+            if dialect == "postgresql":
+                result = db.session.execute(text("SELECT version()")).fetchone()
+                print(f"   ✅ PostgreSQL conectado: {result[0]}")
+            else:
+                result = db.session.execute(text("SELECT sqlite_version()")).fetchone()
+                print(f"   ✅ SQLite conectado: {result[0]}")
             
             # 2. Verificar tabelas
             print("\n2. Verificando tabelas...")
@@ -89,7 +96,7 @@ def test_database_connection():
             print("🎉 CONEXÃO COM BANCO TESTADA COM SUCESSO!")
             print(f"{'='*60}")
             
-            return True
+            assert True
             
         except Exception as e:
             print(f"\n❌ ERRO na conexão com banco: {str(e)}")
@@ -101,8 +108,12 @@ def test_database_connection():
             print(f"   2. Execute: python reset_database.py")
             print(f"   3. Verifique o arquivo .env")
             
-            return False
+            assert False, f"Erro na conexão com banco: {str(e)}"
 
 if __name__ == "__main__":
-    success = test_database_connection()
+    try:
+        test_database_connection()
+        success = True
+    except AssertionError:
+        success = False
     sys.exit(0 if success else 1)

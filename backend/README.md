@@ -101,6 +101,44 @@ Abra `frontend/index.html` no navegador com a API rodando. O frontend consome a 
 - `GET /sales/reports/monthly?year=YYYY&month=MM&format=json|csv|xlsx`
 - `GET /sales/reports/monthly/compare?year=YYYY&month=MM`
 - `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
+
+## Fase 2 (bootstrap de producao)
+
+### 1) Subir PostgreSQL local para homologacao
+
+Na raiz do projeto:
+
+```bash
+docker compose -f infra/docker-compose.postgres.yml up -d
+```
+
+Depois configure `backend/.env` com `DATABASE_URL` apontando para o Postgres.
+
+### 2) CI de backend no GitHub Actions
+
+Pipeline criada em `.github/workflows/backend-ci.yml`.
+Ela instala dependencias e roda testes deterministicos:
+
+- `test_auth_direct.py`
+- `test_database.py`
+
+### 3) Backup de banco PostgreSQL
+
+Script utilitario criado em `backend/scripts/backup_postgres.py`.
+
+Uso:
+
+```bash
+cd backend
+python scripts/backup_postgres.py --output-dir backups
+```
+
+Requisitos:
+
+- `DATABASE_URL` configurada para PostgreSQL
+- `pg_dump` disponivel no PATH
 
 ## Direcionamento de mercado aplicado
 

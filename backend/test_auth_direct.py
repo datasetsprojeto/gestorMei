@@ -84,13 +84,13 @@ def test_auth_directly():
             print("🎉 Teste direto concluído com sucesso!")
             print("=" * 60)
             
-            return True
+            assert True
             
         except Exception as e:
             print(f"\n❌ Erro durante o teste: {str(e)}")
             import traceback
             traceback.print_exc()
-            return False
+            assert False, f"Erro durante o teste direto de auth: {str(e)}"
 
 def test_email_validation():
     """Testa a validação de email"""
@@ -125,7 +125,7 @@ def test_email_validation():
         if not passed:
             all_passed = False
     
-    return all_passed
+    assert all_passed, "Falha em um ou mais casos de validação de e-mail"
 
 def test_password_validation():
     """Testa a validação de senha"""
@@ -163,7 +163,7 @@ def test_password_validation():
         if not passed:
             all_passed = False
     
-    return all_passed
+    assert all_passed, "Falha em um ou mais casos de validação de senha"
 
 def main():
     """Função principal"""
@@ -181,8 +181,8 @@ def main():
     for test_name, test_func in tests:
         print(f"\n📋 Executando: {test_name}")
         try:
-            success = test_func()
-            results.append((test_name, success))
+            test_func()
+            results.append((test_name, True))
         except Exception as e:
             print(f"❌ Erro: {str(e)}")
             results.append((test_name, False))
