@@ -9,7 +9,7 @@ import re
 import logging
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -35,7 +35,7 @@ def _login_attempt_key(email):
 def _is_login_rate_limited(email):
     key = _login_attempt_key(email)
     state = _LOGIN_ATTEMPTS.get(key)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     if not state:
         return False, 0
 
@@ -51,7 +51,7 @@ def _is_login_rate_limited(email):
 
 def _register_login_attempt(email):
     key = _login_attempt_key(email)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     state = _LOGIN_ATTEMPTS.get(key)
     if not state or now >= state.get("reset_at", now):
         _LOGIN_ATTEMPTS[key] = {
@@ -107,10 +107,16 @@ def validate_password(password):
     password = str(password)
     if not password:
         return "Senha inválida"
-    if len(password) < 6:
-        return "Senha deve ter pelo menos 6 caracteres"
+    if len(password) < 8:
+        return "Senha deve ter pelo menos 8 caracteres"
+    if not any(ch.isupper() for ch in password):
+        return "Senha deve conter pelo menos uma letra maiúscula"
+    if not any(ch.islower() for ch in password):
+        return "Senha deve conter pelo menos uma letra minúscula"
     if not any(ch.isdigit() for ch in password):
         return "Senha deve conter pelo menos um número"
+    if not any(ch in "!@#$%^&*()-_=+[]{};:,.?/" for ch in password):
+        return "Senha deve conter pelo menos um caractere especial"
     return None
 
 
@@ -336,7 +342,7 @@ def login():
 @jwt_required()
 def list_audit_logs():
     current_user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     if not user:
         return jsonify({"error": "Usuário não encontrado"}), 404
     if user.owner_id is not None:

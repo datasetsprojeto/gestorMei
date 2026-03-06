@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 import logging
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 from .extensions import db, jwt, bcrypt, migrate
 from .routes.health import health_bp
@@ -9,6 +9,20 @@ from .routes.auth import auth_bp
 from .routes.product import product_bp
 from .routes.sale import sale_bp
 from .routes.employee import employee_bp
+
+_GLOBAL_RATE_LIMIT_STATE = {}
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _client_ip(req, trust_proxy_headers=False):
+    if trust_proxy_headers:
+        forwarded_for = req.headers.get("X-Forwarded-For", "").strip()
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+    return req.remote_addr or "unknown"
 
 
 def create_app(config_name="development"):
@@ -72,10 +86,37 @@ def create_app(config_name="development"):
     def log_request():
         request_id = request.headers.get('X-Request-ID') or str(uuid4())
         g.request_id = request_id
+        client_ip = _client_ip(request, app.config.get("TRUST_PROXY_HEADERS", False))
+        g.client_ip = client_ip
+
+        if app.config.get("GLOBAL_RATE_LIMIT_ENABLED", True):
+            exempt_path_prefixes = ("/health", "/")
+            if request.path not in exempt_path_prefixes and not request.path.startswith("/health"):
+                now = datetime.now(UTC)
+                key = f"{client_ip}|{request.method}"
+                bucket = _GLOBAL_RATE_LIMIT_STATE.get(key)
+                max_requests = int(app.config.get("GLOBAL_RATE_LIMIT_MAX_REQUESTS", 240))
+                window_seconds = int(app.config.get("GLOBAL_RATE_LIMIT_WINDOW_SECONDS", 60))
+                if not bucket or now >= bucket["reset_at"]:
+                    _GLOBAL_RATE_LIMIT_STATE[key] = {
+                        "count": 1,
+                        "reset_at": now + timedelta(seconds=window_seconds),
+                    }
+                else:
+                    bucket["count"] += 1
+                    if bucket["count"] > max_requests:
+                        retry_after = max(1, int((bucket["reset_at"] - now).total_seconds()))
+                        response = jsonify({
+                            "error": "Muitas requisições. Tente novamente em instantes.",
+                            "request_id": request_id,
+                        })
+                        response.status_code = 429
+                        response.headers["Retry-After"] = str(retry_after)
+                        return response
 
         if request.path != '/health':
             app.logger.info(
-                f"request_id={request_id} method={request.method} path={request.path} remote={request.remote_addr}"
+                f"request_id={request_id} method={request.method} path={request.path} remote={client_ip}"
             )
     
     @app.after_request
@@ -89,6 +130,7 @@ def create_app(config_name="development"):
             response.headers['X-Frame-Options'] = 'DENY'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
 
         if request.path != '/health':
             app.logger.info(
@@ -102,7 +144,7 @@ def create_app(config_name="development"):
         return jsonify({
             "error": "Recurso não encontrado",
             "message": "O recurso solicitado não existe.",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _utc_now_iso(),
             "path": request.path
         }), 404
     
@@ -111,7 +153,7 @@ def create_app(config_name="development"):
         return jsonify({
             "error": "Método não permitido",
             "message": "O método HTTP não é suportado para este recurso.",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _utc_now_iso(),
             "method": request.method,
             "path": request.path
         }), 405
@@ -122,7 +164,7 @@ def create_app(config_name="development"):
         return jsonify({
             "error": "Erro interno do servidor",
             "message": "Ocorreu um erro inesperado. Tente novamente mais tarde.",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": _utc_now_iso()
         }), 500
     
     @app.errorhandler(400)
@@ -130,7 +172,7 @@ def create_app(config_name="development"):
         return jsonify({
             "error": "Requisição inválida",
             "message": "A requisição contém dados inválidos ou malformados.",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": _utc_now_iso()
         }), 400
     
     # Rota padrão
@@ -140,7 +182,7 @@ def create_app(config_name="development"):
             "name": "GestorMEI API",
             "version": "1.0.0",
             "description": "Sistema de gestão de vendas e estoque para MEIs",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _utc_now_iso(),
             "endpoints": {
                 "auth": {
                     "register": "POST /auth/register",

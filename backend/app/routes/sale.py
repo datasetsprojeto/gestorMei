@@ -6,7 +6,7 @@ from app.models.sale_item import SaleItem
 from app.models.product import Product
 from app.models.monthly_snapshot import MonthlySnapshot
 from app.models.user import User
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from datetime import time as dt_time
 from zoneinfo import ZoneInfo
 import csv
@@ -24,7 +24,7 @@ def _effective_unit_cost(func_obj):
 
 
 def _workspace_owner_id(current_user_id):
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     if not user:
         return None
     return user.owner_id if user.owner_id else user.id
@@ -335,7 +335,7 @@ def create_sale():
             db.session.commit()
             
             # Buscar venda completa para resposta
-            sale_complete = Sale.query.get(sale.id)
+            sale_complete = db.session.get(Sale, sale.id)
             
             return jsonify({
                 "message": "Venda registrada com sucesso",
@@ -520,7 +520,7 @@ def get_monthly_report():
         user_id = _workspace_owner_id(current_user_id)
         if not user_id:
             return jsonify({"error": "Usuário não encontrado"}), 404
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         year = int(request.args.get("year", now.year))
         month = int(request.args.get("month", now.month))
@@ -630,7 +630,7 @@ def compare_monthly_report():
         user_id = _workspace_owner_id(current_user_id)
         if not user_id:
             return jsonify({"error": "Usuário não encontrado"}), 404
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         year = int(request.args.get("year", now.year))
         month = int(request.args.get("month", now.month))
@@ -692,7 +692,7 @@ def save_monthly_snapshot():
         user_id = _workspace_owner_id(current_user_id)
         if not user_id:
             return jsonify({"error": "Usuário não encontrado"}), 404
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         data = request.get_json(silent=True) or {}
         year = int(data.get("year", now.year))
@@ -712,7 +712,7 @@ def save_monthly_snapshot():
         snapshot.total_sales = int(summary.get("total_sales", 0) or 0)
         snapshot.total_amount = float(summary.get("total_amount", 0) or 0)
         snapshot.gross_amount = float(summary.get("gross_amount", 0) or 0)
-        snapshot.saved_at = datetime.utcnow()
+        snapshot.saved_at = datetime.now(UTC)
 
         db.session.commit()
 

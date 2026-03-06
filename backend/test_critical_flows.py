@@ -108,6 +108,6 @@ def test_sales_flow_rejects_insufficient_stock_and_updates_stock_on_success():
     assert successful.status_code == 201
 
     with app.app_context():
-        product = Product.query.get(product_id)
+        product = db.session.get(Product, product_id)
         assert product is not None
         assert int(product.stock) == 0

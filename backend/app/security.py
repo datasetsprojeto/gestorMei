@@ -1,4 +1,4 @@
-from app.extensions import bcrypt
+from app.extensions import bcrypt, db
 from app.models.user import User
 
 
@@ -6,7 +6,7 @@ def workspace_owner_user(user):
     if not user:
         return None
     owner_id = user.owner_id if user.owner_id else user.id
-    return User.query.get(owner_id)
+    return db.session.get(User, owner_id)
 
 
 def verify_owner_password(user, plain_password):

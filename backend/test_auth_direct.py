@@ -137,14 +137,15 @@ def test_password_validation():
     from app.routes.auth import validate_password
     
     test_cases = [
-        ("senha123", None),  # Válida
-        ("123456", None),    # Válida
-        ("abc123", None),    # Válida
-        ("short", "Senha deve ter pelo menos 6 caracteres"),
+        ("Senha@123", None),  # Válida
+        ("Senha#2026", None),  # Válida
+        ("short", "Senha deve ter pelo menos 8 caracteres"),
         ("", "Senha inválida"),
         (None, "Senha inválida"),
-        ("senhasemnumeros", "Senha deve conter pelo menos um número"),
-        ("SENHA123", None),  # Válida (tem números)
+        ("senhasemnumeros", "Senha deve conter pelo menos uma letra maiúscula"),
+        ("SENHA123", "Senha deve conter pelo menos uma letra minúscula"),
+        ("SenhaSemNumero!", "Senha deve conter pelo menos um número"),
+        ("Senha123", "Senha deve conter pelo menos um caractere especial"),
     ]
     
     all_passed = True

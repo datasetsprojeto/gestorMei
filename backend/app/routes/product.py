@@ -13,7 +13,7 @@ product_bp = Blueprint("products", __name__, url_prefix="/products")
 
 
 def _workspace_owner_id(current_user_id):
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     if not user:
         return None
     return user.owner_id if user.owner_id else user.id
@@ -320,7 +320,7 @@ def delete_product(product_id):
         data = request.get_json(silent=True) or {}
         owner_password = str(data.get("owner_password", "")).strip()
 
-        current_user = User.query.get(current_user_id)
+        current_user = db.session.get(User, current_user_id)
         ok_password, owner_user, password_error = verify_owner_password(current_user, owner_password)
         if not ok_password:
             return jsonify({"error": password_error}), 403
@@ -390,7 +390,7 @@ def delete_product(product_id):
 def clear_workspace_data_cache():
     try:
         current_user_id = int(get_jwt_identity())
-        current_user = User.query.get(current_user_id)
+        current_user = db.session.get(User, current_user_id)
         if not current_user:
             return jsonify({"error": "Usuário não encontrado"}), 404
 

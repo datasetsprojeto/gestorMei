@@ -50,3 +50,7 @@ npm run test:e2e
 ## Compliance Inicial
 - Política de privacidade: `docs/privacy-policy.md`
 - Termos de uso: `docs/terms-of-service.md`
+
+## Operação e governança
+- Runbook de incidentes: `docs/runbook-incidentes.md`
+- Histórico de mudanças: `CHANGELOG.md`

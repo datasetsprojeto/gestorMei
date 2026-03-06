@@ -30,6 +30,7 @@ class Config:
     # JWT
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "jwt-super-secret-key-change-me")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_DECODE_LEEWAY = 10
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
@@ -50,6 +51,9 @@ class Config:
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5501").split(",")
     ENABLE_SECURITY_HEADERS = os.getenv("ENABLE_SECURITY_HEADERS", "True").lower() == "true"
     TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "False").lower() == "true"
+    GLOBAL_RATE_LIMIT_ENABLED = os.getenv("GLOBAL_RATE_LIMIT_ENABLED", "True").lower() == "true"
+    GLOBAL_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("GLOBAL_RATE_LIMIT_MAX_REQUESTS", "240"))
+    GLOBAL_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("GLOBAL_RATE_LIMIT_WINDOW_SECONDS", "60"))
 
     # SMTP / E-mail
     SMTP_HOST = os.getenv("SMTP_HOST") or os.getenv("MAIL_SERVER")

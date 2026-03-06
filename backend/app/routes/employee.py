@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
@@ -21,7 +21,7 @@ def _effective_unit_cost(func_obj):
 
 def _get_current_user():
     current_user_id = int(get_jwt_identity())
-    return User.query.get(current_user_id)
+    return db.session.get(User, current_user_id)
 
 
 def _owner_workspace_id(user):
@@ -41,7 +41,7 @@ def list_employees():
         return jsonify({"error": "Usuário não encontrado"}), 404
 
     owner_id = _owner_workspace_id(user)
-    owner = User.query.get(owner_id)
+    owner = db.session.get(User, owner_id)
     if not owner:
         return jsonify({"error": "Proprietário não encontrado"}), 404
 
@@ -156,7 +156,7 @@ def employee_analytics():
         return jsonify({"error": "Usuário não encontrado"}), 404
 
     owner_id = _owner_workspace_id(user)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     days = int(request.args.get("days", 30))
     start_date = now - timedelta(days=days)
 
@@ -212,7 +212,7 @@ def employee_analytics():
             })
 
     name_by_id = {}
-    owner = User.query.get(owner_id)
+    owner = db.session.get(User, owner_id)
     if owner:
         name_by_id[owner_id] = owner.name
     for emp in linked_employees:

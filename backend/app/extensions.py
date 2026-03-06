@@ -23,7 +23,7 @@ def user_lookup_callback(_jwt_header, jwt_data):
         identity = int(identity)
     except (TypeError, ValueError):
         return None
-    return User.query.get(identity)
+    return db.session.get(User, identity)
 
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_data):
