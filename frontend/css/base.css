@@ -1,0 +1,25 @@
+﻿:root {
+    --bg: #0d0f12;
+    --bg2: #13161b;
+    --bg3: #1a1e26;
+    --border: #252a35;
+    --accent: #f5a623;
+    --accent2: #e8f542;
+    --text: #e8eaf0;
+    --muted: #5a6175;
+    --success: #3ddc97;
+    --danger: #ff5e5e;
+    --info: #5e9eff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
