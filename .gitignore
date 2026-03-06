@@ -38,3 +38,6 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 npm-debug.log*
+frontend/playwright-report/
+frontend/test-results/
+frontend/.playwright/

@@ -1,4 +1,9 @@
-﻿async function fetchEmployeeAnalytics(showToast = false) {
+﻿const { state, escapeHtml, formatCurrency } = window.GestorMei;
+
+const api = (...args) => window.api(...args);
+const toast = (...args) => window.toast(...args);
+
+async function fetchEmployeeAnalytics(showToast = false) {
   // Funcionário vinculado pode operar no mesmo banco, mas a aba analítica fica para o proprietário.
   if (state.user?.is_owner === false) {
     state.employeeAnalytics = [];
@@ -148,4 +153,15 @@ async function desvincularFuncionario(employeeId) {
     toast(`Falha ao desvincular: ${error.message}`);
   }
 }
+
+Object.assign(window, {
+  fetchEmployeeAnalytics,
+  syncEmployeePeriodChips,
+  setEmployeeAnalyticsDays,
+  renderFuncionarios,
+  vincularFuncionario,
+  desvincularFuncionario,
+});
+
+export {};
 

@@ -10,5 +10,13 @@
     "types": []
   },
   "include": ["js/**/*.js"],
-  "exclude": ["node_modules", "dist", "vite.config.js", "eslint.config.js"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "vite.config.js",
+    "eslint.config.js",
+    "vitest.config.js",
+    "playwright.config.js",
+    "tests/**/*"
+  ]
 }

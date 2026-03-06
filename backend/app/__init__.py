@@ -196,7 +196,6 @@ def create_app(config_name="development"):
 def _initialize_database(app):
     """Cria estrutura minima do banco e usuario admin para primeiro acesso."""
     from pathlib import Path
-    from sqlalchemy import inspect, text
     from app.models.user import User
 
     db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
@@ -206,51 +205,7 @@ def _initialize_database(app):
 
     db.create_all()
 
-    # Compatibilidade com bancos ja existentes sem migracao aplicada.
-    inspector = inspect(db.engine)
-    if inspector.has_table("users"):
-        columns = {col["name"] for col in inspector.get_columns("users")}
-        if "phone" not in columns:
-            db.session.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(30)"))
-            db.session.commit()
-            app.logger.info("Coluna users.phone adicionada automaticamente")
-        if "owner_id" not in columns:
-            db.session.execute(text("ALTER TABLE users ADD COLUMN owner_id INTEGER"))
-            db.session.commit()
-            app.logger.info("Coluna users.owner_id adicionada automaticamente")
-
-    if inspector.has_table("products"):
-        columns = {col["name"] for col in inspector.get_columns("products")}
-        if "cost" not in columns:
-            db.session.execute(text("ALTER TABLE products ADD COLUMN cost NUMERIC(10,2) DEFAULT 0"))
-            db.session.commit()
-            app.logger.info("Coluna products.cost adicionada automaticamente")
-        if "min_stock" not in columns:
-            db.session.execute(text("ALTER TABLE products ADD COLUMN min_stock INTEGER DEFAULT 10"))
-            db.session.commit()
-            app.logger.info("Coluna products.min_stock adicionada automaticamente")
-        if "max_stock" not in columns:
-            db.session.execute(text("ALTER TABLE products ADD COLUMN max_stock INTEGER DEFAULT 100"))
-            db.session.commit()
-            app.logger.info("Coluna products.max_stock adicionada automaticamente")
-        if "is_active" not in columns:
-            db.session.execute(text("ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT 1"))
-            db.session.commit()
-            app.logger.info("Coluna products.is_active adicionada automaticamente")
-
-    if inspector.has_table("sale_items"):
-        columns = {col["name"] for col in inspector.get_columns("sale_items")}
-        if "unit_cost" not in columns:
-            db.session.execute(text("ALTER TABLE sale_items ADD COLUMN unit_cost NUMERIC(10,2) DEFAULT 0"))
-            db.session.commit()
-            app.logger.info("Coluna sale_items.unit_cost adicionada automaticamente")
-
-    if inspector.has_table("sales"):
-        columns = {col["name"] for col in inspector.get_columns("sales")}
-        if "employee_id" not in columns:
-            db.session.execute(text("ALTER TABLE sales ADD COLUMN employee_id INTEGER"))
-            db.session.commit()
-            app.logger.info("Coluna sales.employee_id adicionada automaticamente")
+    # NOTE: schema evolution should happen through Alembic migrations.
 
     admin_email = "admin@gestormei.com"
     admin_password = "admin123"

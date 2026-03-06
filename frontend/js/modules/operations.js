@@ -1,4 +1,13 @@
-﻿async function fetchProducts() {
+﻿const { MONTH_NAMES, state, getMeta, saveProductMeta, formatCurrency, formatDate, formatDateKeyBusiness, escapeHtml } = window.GestorMei;
+
+const api = (...args) => window.api(...args);
+const toast = (...args) => window.toast(...args);
+const statusBadge = (...args) => window.statusBadge(...args);
+const refreshAll = (...args) => window.refreshAll(...args);
+const closeModal = (...args) => window.closeModal(...args);
+const openModal = (...args) => window.openModal(...args);
+
+async function fetchProducts() {
   const data = await api("/products");
   state.products = data.products || [];
   const pendingSync = [];
@@ -1006,4 +1015,52 @@ async function clearWorkspaceDataCache() {
     toast(`Falha ao limpar dados: ${error.message}`);
   }
 }
+
+Object.assign(window, {
+  fetchProducts,
+  fetchSales,
+  initSalesPeriodControls,
+  aplicarFiltroMesVendas,
+  fetchStats,
+  fetchMonthlyStats,
+  initDashboardPeriodControls,
+  onDashboardMonthChange,
+  carregarMesSelecionado,
+  salvarMesSelecionado,
+  carregarMesesSalvos,
+  aplicarMesSalvo,
+  renderDashboard,
+  renderSevenDayRevenue,
+  renderTopProducts,
+  renderRecentActivity,
+  renderCriticalStock,
+  getActiveChip,
+  renderVendas,
+  renderProdutos,
+  renderEstoque,
+  filterVendas,
+  filterProdutos,
+  filterEstoque,
+  populateProductSelectors,
+  syncSalePrice,
+  registrarVenda,
+  addProduto,
+  editarProduto,
+  resetProductForm,
+  deleteProduto,
+  selecionarProdutoEntrada,
+  entradaEstoque,
+  verDetalhesVenda,
+  downloadJson,
+  getPeriodoRelatorio,
+  baixarArquivoRelatorio,
+  gerarRelatorioMensal,
+  compararMesAMes,
+  exportarVendas,
+  exportarProdutos,
+  gerarRelatorioEstoque,
+  clearWorkspaceDataCache,
+});
+
+export {};
 

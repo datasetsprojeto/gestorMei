@@ -1,4 +1,17 @@
-﻿function openModal(id) {
+﻿const { state } = window.GestorMei;
+
+const populateProductSelectors = (...args) => window.populateProductSelectors(...args);
+const resetProductForm = (...args) => window.resetProductForm(...args);
+const filterVendas = (...args) => window.filterVendas(...args);
+const filterEstoque = (...args) => window.filterEstoque(...args);
+const syncSalePrice = (...args) => window.syncSalePrice(...args);
+const doLogin = (...args) => window.doLogin(...args);
+const doRegister = (...args) => window.doRegister(...args);
+const showApp = (...args) => window.showApp(...args);
+const refreshAll = (...args) => window.refreshAll(...args);
+const doLogout = (...args) => window.doLogout(...args);
+
+function openModal(id) {
   if (id === "modal-venda" || id === "modal-entrada") {
     populateProductSelectors();
   }
@@ -53,5 +66,14 @@ if (state.token) {
     doLogout();
   });
 }
+
+Object.assign(window, {
+  openModal,
+  closeModal,
+  setChip,
+  toast,
+});
+
+export {};
 
 

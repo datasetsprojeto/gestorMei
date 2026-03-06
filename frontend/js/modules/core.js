@@ -1,4 +1,23 @@
-﻿async function api(path, options = {}, auth = true) {
+﻿const { API_BASE, state, escapeHtml, formatCurrency, formatDate } = window.GestorMei;
+
+const toast = (...args) => window.toast(...args);
+const initDashboardPeriodControls = (...args) => window.initDashboardPeriodControls(...args);
+const initSalesPeriodControls = (...args) => window.initSalesPeriodControls(...args);
+const fetchProducts = (...args) => window.fetchProducts(...args);
+const fetchSales = (...args) => window.fetchSales(...args);
+const fetchStats = (...args) => window.fetchStats(...args);
+const fetchMonthlyStats = (...args) => window.fetchMonthlyStats(...args);
+const carregarMesesSalvos = (...args) => window.carregarMesesSalvos(...args);
+const fetchEmployeeAnalytics = (...args) => window.fetchEmployeeAnalytics(...args);
+const renderDashboard = (...args) => window.renderDashboard(...args);
+const renderVendas = (...args) => window.renderVendas(...args);
+const renderProdutos = (...args) => window.renderProdutos(...args);
+const renderEstoque = (...args) => window.renderEstoque(...args);
+const renderFuncionarios = (...args) => window.renderFuncionarios(...args);
+const syncEmployeePeriodChips = (...args) => window.syncEmployeePeriodChips(...args);
+const populateProductSelectors = (...args) => window.populateProductSelectors(...args);
+
+async function api(path, options = {}, auth = true) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (auth && state.token) {
     headers.Authorization = `Bearer ${state.token}`;
@@ -214,4 +233,21 @@ function renderAuditLogs() {
     </tr>`;
   }).join("");
 }
+
+Object.assign(window, {
+  api,
+  showApp,
+  showLogin,
+  doLogin,
+  toggleAccountForm,
+  doRegister,
+  doLogout,
+  goTo,
+  statusBadge,
+  refreshAll,
+  fetchAuditLogs,
+  renderAuditLogs,
+});
+
+export {};
 

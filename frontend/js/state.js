@@ -1,13 +1,13 @@
-﻿const API_BASE = "http://localhost:5000";
-const BUSINESS_TIMEZONE = "America/Sao_Paulo";
-const MONTH_NAMES = [
+﻿export const API_BASE = "http://localhost:5000";
+export const BUSINESS_TIMEZONE = "America/Sao_Paulo";
+export const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
 const now = new Date();
 
-const state = {
+export const state = {
   token: localStorage.getItem("gestormei_token") || "",
   user: JSON.parse(localStorage.getItem("gestormei_user") || "null"),
   products: [],
@@ -33,28 +33,28 @@ const state = {
   creatingAccount: false,
 };
 
-function saveProductMeta() {
+export function saveProductMeta() {
   localStorage.setItem("gestormei_product_meta", JSON.stringify(state.productMeta));
 }
 
-function getMeta(productId) {
+export function getMeta(productId) {
   if (!state.productMeta[productId]) {
     state.productMeta[productId] = { cat: "Sem categoria", custo: 0, min: 10, max: 100 };
   }
   return state.productMeta[productId];
 }
 
-function formatCurrency(value) {
+export function formatCurrency(value) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function formatDate(value) {
+export function formatDate(value) {
   if (!value) return "-";
   const dt = new Date(value);
   return dt.toLocaleString("pt-BR");
 }
 
-function formatDateKeyLocal(value) {
+export function formatDateKeyLocal(value) {
   const dt = value instanceof Date ? value : new Date(value);
   const year = dt.getFullYear();
   const month = String(dt.getMonth() + 1).padStart(2, "0");
@@ -62,7 +62,7 @@ function formatDateKeyLocal(value) {
   return `${year}-${month}-${day}`;
 }
 
-function formatDateKeyBusiness(value) {
+export function formatDateKeyBusiness(value) {
   const dt = value instanceof Date ? value : new Date(value);
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: BUSINESS_TIMEZONE,
@@ -73,7 +73,7 @@ function formatDateKeyBusiness(value) {
   return formatter.format(dt);
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -81,5 +81,20 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+// Shared namespace used by legacy modules while we migrate to typed imports.
+window.GestorMei = {
+  API_BASE,
+  BUSINESS_TIMEZONE,
+  MONTH_NAMES,
+  state,
+  saveProductMeta,
+  getMeta,
+  formatCurrency,
+  formatDate,
+  formatDateKeyLocal,
+  formatDateKeyBusiness,
+  escapeHtml,
+};
 
 
