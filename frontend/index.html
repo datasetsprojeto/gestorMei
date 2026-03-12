@@ -72,6 +72,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       Estoque
     </div>
+    <div class="nav-item" onclick="goTo('entradas',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+      Entradas
+    </div>
     <div class="nav-item" id="nav-funcionarios" onclick="goTo('funcionarios',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
       Funcionários
@@ -195,6 +199,32 @@
             <div style="display:flex;flex-direction:column;gap:14px" id="critical-stock-list"></div>
           </div>
         </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Entradas x Vendas (Comparativo)</div>
+            <div class="card-action">Análise do período</div>
+          </div>
+          <div class="metrics-grid metrics-grid-compact" style="margin-bottom:12px">
+            <div class="metric-card blue">
+              <div class="metric-label">Entradas (Custo)</div>
+              <div class="metric-value" id="entries-vs-sales-total-entries">R$0,00</div>
+              <div class="metric-change" id="entries-vs-sales-total-qty">0 un</div>
+            </div>
+            <div class="metric-card green">
+              <div class="metric-label">Vendas Brutas</div>
+              <div class="metric-value" id="entries-vs-sales-total-gross">R$0,00 (0.0%)</div>
+              <div class="metric-change">Cobertura sobre entradas</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Vendas Líquidas</div>
+              <div class="metric-value" id="entries-vs-sales-total-net">R$0,00 (0.0%)</div>
+              <div class="metric-change">Líquido = venda - custo</div>
+            </div>
+          </div>
+          <div class="metric-change" id="entries-vs-sales-balance">Saldo: R$0,00</div>
+          <div class="metric-change" id="entries-vs-sales-hint" style="margin-top:6px">Sem dados no período selecionado.</div>
+        </div>
       </div>
 
       <!-- ── VENDAS ── -->
@@ -205,9 +235,7 @@
           <select id="sales-year-filter" style="max-width:130px"></select>
           <button class="btn-outline" onclick="aplicarFiltroMesVendas()">Aplicar Mês</button>
           <button class="btn-sm" onclick="openModal('modal-venda')">+ Nova Venda</button>
-          <button class="btn-outline" onclick="gerarRelatorioMensal('csv')">Mensal CSV</button>
-          <button class="btn-outline" onclick="gerarRelatorioMensal('xlsx')">Mensal XLSX</button>
-          <button class="btn-outline" onclick="compararMesAMes()">Comparar M/M</button>
+          <button class="btn-outline" onclick="gerarRelatorioMensal()">Relatório Mensal</button>
           <button class="btn-outline" onclick="exportarVendas()">Exportar</button>
         </div>
         <div class="chips" id="chips-vendas">
@@ -226,11 +254,30 @@
         </div>
       </div>
 
+      <!-- ── ENTRADAS ── -->
+      <div class="page" id="page-entradas">
+        <div class="table-toolbar">
+          <input class="search-input" placeholder="Buscar entrada por produto, fornecedor ou nota..." id="search-entradas" oninput="filterEntradas()">
+          <select id="entries-month-filter" style="max-width:180px"></select>
+          <select id="entries-year-filter" style="max-width:130px"></select>
+          <button class="btn-outline" onclick="aplicarFiltroMesEntradas()">Aplicar Mês</button>
+          <button class="btn-sm" onclick="openModal('modal-entrada')">+ Nova Entrada</button>
+          <button class="btn-outline" onclick="openModal('modal-cadastro-produto-entrada')">Cadastrar Novo Produto</button>
+        </div>
+        <div class="card table-card" style="padding:0">
+          <table>
+            <thead>
+              <tr><th>Data</th><th>Produto</th><th>Quantidade</th><th>Custo Unit.</th><th>Custo Total</th><th>Fornecedor</th></tr>
+            </thead>
+            <tbody id="tb-entradas"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- ── PRODUTOS ── -->
       <div class="page" id="page-produtos">
         <div class="table-toolbar">
           <input class="search-input" placeholder="Buscar produto por nome ou categoria..." id="search-prod" oninput="filterProdutos()">
-          <button class="btn-sm" onclick="openModal('modal-produto')">+ Novo Produto</button>
           <button class="btn-outline" onclick="exportarProdutos()">Exportar</button>
         </div>
         <div class="card table-card" style="padding:0">
@@ -247,7 +294,7 @@
       <div class="page" id="page-estoque">
         <div class="table-toolbar">
           <input class="search-input" placeholder="Buscar produto no estoque..." id="search-est" oninput="filterEstoque()">
-          <button class="btn-sm" onclick="openModal('modal-entrada')">+ Entrada</button>
+          <button class="btn-sm" onclick="openModal('modal-entrada')">+ Nova Entrada</button>
           <button class="btn-outline" onclick="gerarRelatorioEstoque()">Relatório</button>
         </div>
         <div class="chips" id="chips-est">
@@ -423,7 +470,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModal('modal-produto')">Cancelar</button>
-      <button class="btn-sm" onclick="addProduto()">Salvar Produto</button>
+      <button class="btn-sm" onclick="addProduto()">Salvar Edição</button>
     </div>
   </div>
 </div>
@@ -439,12 +486,32 @@
       <div class="field">
         <label>Produto</label>
         <select id="e-produto">
-          <option>Café 500g</option>
-          <option>Açúcar 1kg</option>
-          <option>Óleo 900ml</option>
-          <option>Arroz 5kg</option>
-          <option>Feijão Carioca 1kg</option>
+          <option value="">Selecione um produto</option>
         </select>
+      </div>
+      <div class="field">
+        <label>Categoria</label>
+        <input type="text" id="e-auto-categoria" readonly>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Tamanho</label>
+          <input type="text" id="e-auto-tamanho" readonly>
+        </div>
+        <div class="field">
+          <label>Cor</label>
+          <input type="text" id="e-auto-cor" readonly>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Preço de Venda (R$)</label>
+          <input type="text" id="e-auto-preco" readonly>
+        </div>
+        <div class="field">
+          <label>Estoque Mínimo</label>
+          <input type="text" id="e-auto-min" readonly>
+        </div>
       </div>
       <div class="form-row">
         <div class="field">
@@ -458,16 +525,78 @@
       </div>
       <div class="field">
         <label>Fornecedor</label>
-        <input type="text" placeholder="Nome do fornecedor">
-      </div>
-      <div class="field">
-        <label>Nota Fiscal</label>
-        <input type="text" placeholder="NF-e opcional">
+        <input type="text" id="e-fornecedor" readonly>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModal('modal-entrada')">Cancelar</button>
       <button class="btn-sm" onclick="entradaEstoque()">Confirmar Entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Cadastrar Novo Produto com Entrada -->
+<div class="modal-overlay" id="modal-cadastro-produto-entrada">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Cadastrar Novo Produto</div>
+      <button class="modal-close" onclick="closeModal('modal-cadastro-produto-entrada')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nome do Produto</label>
+        <input type="text" id="c-produto-nome" placeholder="Ex: Camiseta Básica">
+      </div>
+      <div class="field">
+        <label>Categoria</label>
+        <select id="c-produto-categoria">
+          <option>Alimentos</option>
+          <option>Bebidas</option>
+          <option>Limpeza</option>
+          <option>Higiene</option>
+          <option>Produtos de Beleza</option>
+          <option>Vestimentas</option>
+          <option>Outros</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Tamanho</label>
+          <input type="text" id="c-produto-tamanho" placeholder="Ex: M">
+        </div>
+        <div class="field">
+          <label>Cor</label>
+          <input type="text" id="c-produto-cor" placeholder="Ex: Azul">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Preço de Venda (R$)</label>
+          <input type="number" id="c-produto-preco" placeholder="0.00" step="0.01" min="0.01">
+        </div>
+        <div class="field">
+          <label>Estoque Mínimo</label>
+          <input type="number" id="c-produto-min" placeholder="10" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Quantidade Recebida</label>
+          <input type="number" id="c-qty" placeholder="0" min="1">
+        </div>
+        <div class="field">
+          <label>Custo Unitário (R$)</label>
+          <input type="number" id="c-custo" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+      <div class="field">
+        <label>Fornecedor</label>
+        <input type="text" id="c-fornecedor" placeholder="Nome do fornecedor">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closeModal('modal-cadastro-produto-entrada')">Cancelar</button>
+      <button class="btn-sm" onclick="cadastrarNovoProdutoComEntrada()">Cadastrar Produto</button>
     </div>
   </div>
 </div>

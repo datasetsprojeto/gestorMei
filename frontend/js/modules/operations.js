@@ -169,6 +169,16 @@ async function fetchMonthlyStats() {
   state.monthlyStats = await api(`/sales/reports/monthly?year=${year}&month=${month}&format=json`);
 }
 
+async function fetchStockEntries() {
+  const data = await api("/products/entries?limit=500");
+  state.stockEntries = data.entries || [];
+  state.stockEntriesSummary = data.summary || {
+    total_entries: 0,
+    total_quantity: 0,
+    total_cost: 0,
+  };
+}
+
 function initDashboardPeriodControls() {
   const monthSelect = document.getElementById("dash-month");
   const yearSelect = document.getElementById("dash-year");
@@ -188,6 +198,41 @@ function initDashboardPeriodControls() {
 
   monthSelect.value = String(state.dashboardPeriod.month);
   yearSelect.value = String(state.dashboardPeriod.year);
+}
+
+function initEntriesPeriodControls() {
+  const monthSelect = document.getElementById("entries-month-filter");
+  const yearSelect = document.getElementById("entries-year-filter");
+  if (!monthSelect || !yearSelect) return;
+
+  monthSelect.innerHTML = MONTH_NAMES.map((name, idx) => {
+    const month = idx + 1;
+    return `<option value="${month}">${name}</option>`;
+  }).join("");
+
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let y = currentYear; y >= currentYear - 8; y -= 1) {
+    years.push(`<option value="${y}">${y}</option>`);
+  }
+  yearSelect.innerHTML = years.join("");
+
+  monthSelect.value = String(state.entriesPeriod.month);
+  yearSelect.value = String(state.entriesPeriod.year);
+}
+
+async function aplicarFiltroMesEntradas() {
+  const monthSelect = document.getElementById("entries-month-filter");
+  const yearSelect = document.getElementById("entries-year-filter");
+  if (!monthSelect || !yearSelect) return;
+
+  state.entriesPeriod.month = Number(monthSelect.value || new Date().getMonth() + 1);
+  state.entriesPeriod.year = Number(yearSelect.value || new Date().getFullYear());
+  localStorage.setItem("gestormei_entries_month", String(state.entriesPeriod.month));
+  localStorage.setItem("gestormei_entries_year", String(state.entriesPeriod.year));
+
+  renderEntradas(document.getElementById("search-entradas")?.value || "");
+  toast(`Entradas filtradas para ${String(state.entriesPeriod.month).padStart(2, "0")}/${state.entriesPeriod.year}.`);
 }
 
 async function onDashboardMonthChange() {
@@ -301,6 +346,50 @@ function renderDashboard() {
   renderTopProducts();
   renderRecentActivity();
   renderCriticalStock();
+  renderEntriesVsSalesAnalysis();
+}
+
+function renderEntriesVsSalesAnalysis() {
+  const selectedLabel = `${String(state.dashboardPeriod.month).padStart(2, "0")}/${state.dashboardPeriod.year}`;
+  const entriesForMonth = state.stockEntries.filter((entry) => {
+    const dt = new Date(entry.created_at);
+    return dt.getFullYear() === Number(state.dashboardPeriod.year)
+      && dt.getMonth() + 1 === Number(state.dashboardPeriod.month);
+  });
+
+  const totalEntriesCost = entriesForMonth.reduce((sum, entry) => sum + Number(entry.total_cost || 0), 0);
+  const totalEntriesQty = entriesForMonth.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+  const totalGross = Number(state.monthlyStats?.summary?.gross_amount || 0);
+  const totalNet = Number(state.monthlyStats?.summary?.total_profit || state.monthlyStats?.summary?.total_amount || 0);
+  const salesCount = Number(state.monthlyStats?.summary?.total_sales || 0);
+
+  const grossCoverage = totalEntriesCost > 0 ? (totalGross / totalEntriesCost) * 100 : 0;
+  const netCoverage = totalEntriesCost > 0 ? (totalNet / totalEntriesCost) * 100 : 0;
+  const grossBalance = totalGross - totalEntriesCost;
+  const netBalance = totalNet - totalEntriesCost;
+
+  const totalEntriesEl = document.getElementById("entries-vs-sales-total-entries");
+  const qtyEl = document.getElementById("entries-vs-sales-total-qty");
+  const grossEl = document.getElementById("entries-vs-sales-total-gross");
+  const netEl = document.getElementById("entries-vs-sales-total-net");
+  const balanceEl = document.getElementById("entries-vs-sales-balance");
+  const hintEl = document.getElementById("entries-vs-sales-hint");
+  if (!totalEntriesEl || !qtyEl || !grossEl || !netEl || !balanceEl || !hintEl) return;
+
+  totalEntriesEl.textContent = formatCurrency(totalEntriesCost);
+  qtyEl.textContent = `${totalEntriesQty} un`;
+  grossEl.textContent = `${formatCurrency(totalGross)} (${grossCoverage.toFixed(1)}%)`;
+  netEl.textContent = `${formatCurrency(totalNet)} (${netCoverage.toFixed(1)}%)`;
+
+  const netPositive = netBalance >= 0;
+  balanceEl.textContent = `${netPositive ? "Saldo" : "Deficit"}: ${formatCurrency(Math.abs(netBalance))}`;
+  balanceEl.className = `metric-change ${netPositive ? "up" : "down"}`;
+
+  if (entriesForMonth.length === 0 && salesCount === 0) {
+    hintEl.textContent = `Sem entradas e sem vendas no período ${selectedLabel}.`;
+  } else {
+    hintEl.textContent = `${entriesForMonth.length} entrada(s), ${salesCount} venda(s), saldo bruto ${formatCurrency(grossBalance)} em ${selectedLabel}.`;
+  }
 }
 
 function renderSevenDayRevenue() {
@@ -575,9 +664,6 @@ function renderProdutos(filter = "") {
           <button class="action-btn" title="Editar" onclick="editarProduto(${p.id})">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="action-btn del" title="Excluir" onclick="deleteProduto(${p.id})">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
         </td>
       </tr>`;
     })
@@ -635,6 +721,38 @@ function renderEstoque(filter = "") {
     .join("");
 }
 
+function renderEntradas(filter = "") {
+  const tb = document.getElementById("tb-entradas");
+  const query = String(filter || "").toLowerCase();
+  if (!tb) return;
+
+  const filtered = state.stockEntries.filter((entry) => {
+    const dt = new Date(entry.created_at);
+    const inPeriod = dt.getFullYear() === Number(state.entriesPeriod.year)
+      && dt.getMonth() + 1 === Number(state.entriesPeriod.month);
+    const text = `${entry.product_name || ""} ${entry.supplier || ""}`.toLowerCase();
+    return inPeriod && (!query || text.includes(query));
+  });
+
+  if (!filtered.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted)">Sem entradas no período selecionado.</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = filtered.map((entry) => {
+    const supplier = entry.supplier ? escapeHtml(entry.supplier) : "-";
+    return `
+    <tr>
+      <td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:12px">${formatDate(entry.created_at)}</td>
+      <td>${escapeHtml(entry.product_name || "Sem produto")}</td>
+      <td style="font-family:'DM Mono',monospace">${Number(entry.quantity || 0)} un</td>
+      <td style="font-family:'DM Mono',monospace">${formatCurrency(entry.unit_cost || 0)}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--info)">${formatCurrency(entry.total_cost || 0)}</td>
+      <td>${supplier}</td>
+    </tr>`;
+  }).join("");
+}
+
 function filterVendas() {
   renderVendas(document.getElementById("search-vendas").value);
 }
@@ -647,18 +765,99 @@ function filterEstoque() {
   renderEstoque(document.getElementById("search-est").value);
 }
 
+function filterEntradas() {
+  renderEntradas(document.getElementById("search-entradas").value);
+}
+
 function populateProductSelectors() {
   const saleSelect = document.getElementById("v-produto");
   const stockSelect = document.getElementById("e-produto");
+  if (!saleSelect || !stockSelect) return;
 
-  const options = state.products
+  const saleOptions = state.products
     .map((p) => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`)
     .join("");
 
-  saleSelect.innerHTML = options || "<option value=''>Sem produtos</option>";
-  stockSelect.innerHTML = options || "<option value=''>Sem produtos</option>";
+  const stockOptions = state.products
+    .map((p) => `<option value="${p.id}">${p.name}</option>`)
+    .join("");
+
+  saleSelect.innerHTML = saleOptions || "<option value=''>Sem produtos</option>";
+  stockSelect.innerHTML = stockOptions || "<option value=''>Sem produtos cadastrados</option>";
+
+  const preset = state.entryProductPreset ? String(state.entryProductPreset) : "";
+  if (preset && state.products.some((p) => String(p.id) === preset)) {
+    stockSelect.value = preset;
+  } else if (state.products.length) {
+    stockSelect.value = String(state.products[0].id);
+  } else {
+    stockSelect.value = "";
+  }
+  state.entryProductPreset = null;
 
   syncSalePrice();
+  syncEntradaProdutoSelecionado();
+}
+
+function toggleEntryProductFields() {
+  syncEntradaProdutoSelecionado();
+}
+
+function parseTamanhoCorFromName(name) {
+  const raw = String(name || "");
+  const sizeMatch = /(?:tam(?:anho)?\s*)([\w.-]+)/i.exec(raw);
+  const colorMatch = /(?:cor\s*)([\w.-]+)/i.exec(raw);
+  return {
+    size: sizeMatch ? sizeMatch[1] : "",
+    color: colorMatch ? colorMatch[1] : "",
+  };
+}
+
+function getLastSupplierForProduct(productId) {
+  const entry = state.stockEntries.find((item) => Number(item.product_id) === Number(productId) && item.supplier);
+  return entry ? String(entry.supplier) : "";
+}
+
+function syncEntradaProdutoSelecionado() {
+  const select = document.getElementById("e-produto");
+  if (!select) return;
+
+  const categoriaEl = document.getElementById("e-auto-categoria");
+  const tamanhoEl = document.getElementById("e-auto-tamanho");
+  const corEl = document.getElementById("e-auto-cor");
+  const precoEl = document.getElementById("e-auto-preco");
+  const minEl = document.getElementById("e-auto-min");
+  const fornecedorEl = document.getElementById("e-fornecedor");
+  const custoEl = document.getElementById("e-custo");
+
+  const productId = Number(select.value || 0);
+  const product = state.products.find((item) => Number(item.id) === productId);
+
+  if (!product) {
+    if (categoriaEl) categoriaEl.value = "-";
+    if (tamanhoEl) tamanhoEl.value = "-";
+    if (corEl) corEl.value = "-";
+    if (precoEl) precoEl.value = "-";
+    if (minEl) minEl.value = "-";
+    if (fornecedorEl) fornecedorEl.value = "";
+    if (custoEl) custoEl.value = "";
+    return;
+  }
+
+  const meta = getMeta(product.id);
+  const parsed = parseTamanhoCorFromName(product.name);
+  const minStock = Number(product.min_stock ?? meta.min ?? 0);
+  const supplier = String(meta.supplierDefault || getLastSupplierForProduct(product.id) || "");
+
+  if (categoriaEl) categoriaEl.value = meta.cat || "Outros";
+  if (tamanhoEl) tamanhoEl.value = meta.size || parsed.size || "-";
+  if (corEl) corEl.value = meta.color || parsed.color || "-";
+  if (precoEl) precoEl.value = formatCurrency(product.price || 0);
+  if (minEl) minEl.value = `${minStock} un`;
+  if (fornecedorEl) fornecedorEl.value = supplier;
+  if (custoEl && !custoEl.value) {
+    custoEl.value = Number(product.cost || meta.custo || 0).toFixed(2);
+  }
 }
 
 function syncSalePrice() {
@@ -693,6 +892,11 @@ async function registrarVenda() {
 }
 
 async function addProduto() {
+  if (!state.editingProductId) {
+    toast("Cadastro de novo produto disponível apenas em Entradas > Nova Entrada.");
+    return;
+  }
+
   const name = document.getElementById("p-nome").value.trim();
   const price = Number(document.getElementById("p-preco").value || 0);
   const stock = Number(document.getElementById("p-estoque").value || 0);
@@ -768,7 +972,7 @@ function editarProduto(id) {
 
 function resetProductForm() {
   state.editingProductId = null;
-  document.querySelector("#modal-produto .modal-title").textContent = "Novo Produto";
+  document.querySelector("#modal-produto .modal-title").textContent = "Editar Produto";
   document.getElementById("p-nome").value = "";
   document.getElementById("p-preco").value = "";
   document.getElementById("p-custo").value = "";
@@ -812,36 +1016,139 @@ async function deleteProduto(id) {
 }
 
 function selecionarProdutoEntrada(id) {
-  document.getElementById("e-produto").value = String(id);
+  state.entryProductPreset = String(id);
+  openModal("modal-entrada");
+}
+
+function abrirNovaEntrada() {
+  state.entryProductPreset = null;
   openModal("modal-entrada");
 }
 
 async function entradaEstoque() {
-  const productId = Number(document.getElementById("e-produto").value);
+  const selectedProduct = document.getElementById("e-produto").value;
+  let productId = Number(selectedProduct);
   const qty = Number(document.getElementById("e-qty").value || 0);
+  const unitCost = Number(document.getElementById("e-custo").value || 0);
+  const supplier = document.getElementById("e-fornecedor").value.trim() || "Fornecedor não informado";
   if (!productId || qty <= 0) {
     toast("Informe um produto e quantidade valida.");
     return;
   }
 
-  const product = state.products.find((p) => p.id === productId);
-  if (!product) {
-    toast("Produto nao encontrado.");
-    return;
-  }
-
   try {
-    await api(`/products/${productId}`, {
-      method: "PUT",
-      body: JSON.stringify({ stock: Number(product.stock) + qty }),
+    const selected = state.products.find((item) => Number(item.id) === productId);
+    const fallbackCost = Number(selected?.cost || 0);
+    const effectiveCost = Number.isFinite(unitCost) && unitCost > 0 ? unitCost : fallbackCost;
+
+    const result = await api("/products/entries", {
+      method: "POST",
+      body: JSON.stringify({
+        product_id: productId,
+        quantity: qty,
+        unit_cost: effectiveCost,
+        supplier,
+      }),
     });
 
     closeModal("modal-entrada");
     document.getElementById("e-qty").value = "";
+    document.getElementById("e-custo").value = "";
+    document.getElementById("e-fornecedor").value = "";
     await refreshAll();
-    toast("Entrada de estoque registrada.");
+    if (result?.entry?.variant_created) {
+      toast("Entrada registrada. Produto cadastrado como variante por custo unitário diferente.");
+    } else {
+      toast("Entrada de estoque registrada.");
+    }
   } catch (error) {
     toast(`Falha ao registrar entrada: ${error.message}`);
+  }
+}
+
+async function cadastrarNovoProdutoComEntrada() {
+  const baseName = document.getElementById("c-produto-nome").value.trim();
+  const category = document.getElementById("c-produto-categoria").value;
+  const size = document.getElementById("c-produto-tamanho").value.trim();
+  const color = document.getElementById("c-produto-cor").value.trim();
+  const salePrice = Number(document.getElementById("c-produto-preco").value || 0);
+  const minStock = Number(document.getElementById("c-produto-min").value || 10);
+  const qty = Number(document.getElementById("c-qty").value || 0);
+  const unitCost = Number(document.getElementById("c-custo").value || 0);
+  const supplier = document.getElementById("c-fornecedor").value.trim() || "Fornecedor não informado";
+
+  if (!baseName || !(salePrice > 0) || qty <= 0) {
+    toast("Preencha nome, preço de venda e quantidade para cadastrar o produto.");
+    return;
+  }
+
+  const composedName = [
+    baseName,
+    size ? `Tam ${size}` : "",
+    color ? `Cor ${color}` : "",
+  ].filter(Boolean).join(" - ");
+
+  if (state.products.some((item) => item.name.toLowerCase() === composedName.toLowerCase())) {
+    toast("Este produto já existe. Use Nova Entrada para registrar recebimento.");
+    return;
+  }
+
+  try {
+    const created = await api("/products", {
+      method: "POST",
+      body: JSON.stringify({
+        name: composedName,
+        price: salePrice,
+        cost: Number.isFinite(unitCost) && unitCost > 0 ? unitCost : 0,
+        stock: 0,
+        min_stock: Math.max(0, minStock),
+        max_stock: 100,
+      }),
+    });
+
+    const productId = Number(created.product?.id);
+    if (!productId) {
+      toast("Falha ao cadastrar produto.");
+      return;
+    }
+
+    state.productMeta[productId] = {
+      cat: category || "Outros",
+      custo: Number.isFinite(unitCost) && unitCost > 0 ? unitCost : 0,
+      min: Math.max(0, minStock),
+      max: 100,
+      size,
+      color,
+      supplierDefault: supplier,
+    };
+    saveProductMeta();
+
+    await api("/products/entries", {
+      method: "POST",
+      body: JSON.stringify({
+        product_id: productId,
+        quantity: qty,
+        unit_cost: Number.isFinite(unitCost) && unitCost > 0 ? unitCost : 0,
+        supplier,
+      }),
+    });
+
+    closeModal("modal-cadastro-produto-entrada");
+    document.getElementById("c-produto-nome").value = "";
+    document.getElementById("c-produto-categoria").value = "Outros";
+    document.getElementById("c-produto-tamanho").value = "";
+    document.getElementById("c-produto-cor").value = "";
+    document.getElementById("c-produto-preco").value = "";
+    document.getElementById("c-produto-min").value = "";
+    document.getElementById("c-qty").value = "";
+    document.getElementById("c-custo").value = "";
+    document.getElementById("c-fornecedor").value = "";
+
+    await refreshAll();
+    state.entryProductPreset = String(productId);
+    toast("Produto cadastrado e entrada registrada com sucesso.");
+  } catch (error) {
+    toast(`Falha ao cadastrar produto: ${error.message}`);
   }
 }
 
@@ -906,12 +1213,12 @@ async function baixarArquivoRelatorio(path, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
-async function gerarRelatorioMensal(formato) {
+async function gerarRelatorioMensal() {
   const periodo = getPeriodoRelatorio();
   if (!periodo) return;
 
   try {
-    const ext = formato === "xlsx" ? "xlsx" : "csv";
+    const ext = "xlsx";
     const fallback = `relatorio-mensal-${periodo.ano}-${String(periodo.mes).padStart(2, "0")}.${ext}`;
     await baixarArquivoRelatorio(
       `/sales/reports/monthly?year=${periodo.ano}&month=${periodo.mes}&format=${ext}`,
@@ -920,31 +1227,6 @@ async function gerarRelatorioMensal(formato) {
     toast(`Relatório mensal ${ext.toUpperCase()} gerado.`);
   } catch (error) {
     toast(`Falha ao gerar relatório: ${error.message}`);
-  }
-}
-
-async function compararMesAMes() {
-  const periodo = getPeriodoRelatorio();
-  if (!periodo) return;
-
-  try {
-    const data = await api(`/sales/reports/monthly/compare?year=${periodo.ano}&month=${periodo.mes}`);
-    const growth = Number(data.comparison?.growth_percent || 0).toFixed(2);
-    const diff = Number(data.comparison?.amount_difference || 0);
-
-    alert(
-      `Comparativo Mês a Mês\n\n` +
-      `Atual: ${String(data.current?.month).padStart(2, "0")}/${data.current?.year}\n` +
-      `Faturamento: ${formatCurrency(data.current?.summary?.total_amount || 0)}\n` +
-      `Vendas: ${data.current?.summary?.total_sales || 0}\n\n` +
-      `Anterior: ${String(data.previous?.month).padStart(2, "0")}/${data.previous?.year}\n` +
-      `Faturamento: ${formatCurrency(data.previous?.summary?.total_amount || 0)}\n` +
-      `Vendas: ${data.previous?.summary?.total_sales || 0}\n\n` +
-      `Diferença: ${formatCurrency(diff)}\n` +
-      `Crescimento: ${growth}%`
-    );
-  } catch (error) {
-    toast(`Falha no comparativo: ${error.message}`);
   }
 }
 
@@ -1007,6 +1289,8 @@ async function clearWorkspaceDataCache() {
     state.stats = null;
     state.monthlyStats = null;
     state.monthlySnapshots = [];
+    state.stockEntries = [];
+    state.stockEntriesSummary = null;
     state.employeeAnalytics = [];
 
     await refreshAll();
@@ -1023,7 +1307,10 @@ Object.assign(window, {
   aplicarFiltroMesVendas,
   fetchStats,
   fetchMonthlyStats,
+  fetchStockEntries,
   initDashboardPeriodControls,
+  initEntriesPeriodControls,
+  aplicarFiltroMesEntradas,
   onDashboardMonthChange,
   carregarMesSelecionado,
   salvarMesSelecionado,
@@ -1038,27 +1325,33 @@ Object.assign(window, {
   renderVendas,
   renderProdutos,
   renderEstoque,
+  renderEntradas,
   filterVendas,
   filterProdutos,
   filterEstoque,
+  filterEntradas,
   populateProductSelectors,
+  toggleEntryProductFields,
+  syncEntradaProdutoSelecionado,
   syncSalePrice,
   registrarVenda,
   addProduto,
   editarProduto,
   resetProductForm,
   deleteProduto,
+  abrirNovaEntrada,
   selecionarProdutoEntrada,
   entradaEstoque,
+  cadastrarNovoProdutoComEntrada,
   verDetalhesVenda,
   downloadJson,
   getPeriodoRelatorio,
   baixarArquivoRelatorio,
   gerarRelatorioMensal,
-  compararMesAMes,
   exportarVendas,
   exportarProdutos,
   gerarRelatorioEstoque,
+  renderEntriesVsSalesAnalysis,
   clearWorkspaceDataCache,
 });
 

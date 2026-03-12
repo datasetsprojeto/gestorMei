@@ -7,15 +7,18 @@ const fetchProducts = (...args) => window.fetchProducts(...args);
 const fetchSales = (...args) => window.fetchSales(...args);
 const fetchStats = (...args) => window.fetchStats(...args);
 const fetchMonthlyStats = (...args) => window.fetchMonthlyStats(...args);
+const fetchStockEntries = (...args) => window.fetchStockEntries(...args);
 const carregarMesesSalvos = (...args) => window.carregarMesesSalvos(...args);
 const fetchEmployeeAnalytics = (...args) => window.fetchEmployeeAnalytics(...args);
 const renderDashboard = (...args) => window.renderDashboard(...args);
 const renderVendas = (...args) => window.renderVendas(...args);
 const renderProdutos = (...args) => window.renderProdutos(...args);
 const renderEstoque = (...args) => window.renderEstoque(...args);
+const renderEntradas = (...args) => window.renderEntradas(...args);
 const renderFuncionarios = (...args) => window.renderFuncionarios(...args);
 const syncEmployeePeriodChips = (...args) => window.syncEmployeePeriodChips(...args);
 const populateProductSelectors = (...args) => window.populateProductSelectors(...args);
+const initEntriesPeriodControls = (...args) => window.initEntriesPeriodControls(...args);
 
 async function api(path, options = {}, auth = true) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -62,6 +65,7 @@ function showApp() {
   }
   initDashboardPeriodControls();
   initSalesPeriodControls();
+  initEntriesPeriodControls();
 }
 
 function showLogin() {
@@ -154,6 +158,7 @@ function goTo(page, el) {
     vendas: "Vendas",
     produtos: "Produtos",
     estoque: "Estoque",
+    entradas: "Entradas",
     funcionarios: "Funcionários",
     limpeza: "Limpar Dados",
   };
@@ -179,11 +184,20 @@ async function refreshAll() {
     year: "numeric",
   });
 
-  await Promise.all([fetchProducts(), fetchSales(), fetchStats(), fetchMonthlyStats(), carregarMesesSalvos(true), fetchEmployeeAnalytics(false)]);
+  await Promise.all([
+    fetchProducts(),
+    fetchSales(),
+    fetchStats(),
+    fetchMonthlyStats(),
+    fetchStockEntries(),
+    carregarMesesSalvos(true),
+    fetchEmployeeAnalytics(false),
+  ]);
   renderDashboard();
   renderVendas(document.getElementById("search-vendas").value || "");
   renderProdutos(document.getElementById("search-prod").value || "");
   renderEstoque(document.getElementById("search-est").value || "");
+  renderEntradas(document.getElementById("search-entradas")?.value || "");
   renderFuncionarios();
   renderAuditLogs();
   syncEmployeePeriodChips();

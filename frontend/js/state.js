@@ -15,6 +15,8 @@ export const state = {
   stats: null,
   monthlyStats: null,
   monthlySnapshots: [],
+  stockEntries: [],
+  stockEntriesSummary: null,
   employees: [],
   employeeAnalytics: [],
   auditLogs: [],
@@ -28,7 +30,12 @@ export const state = {
     month: Number(localStorage.getItem("gestormei_dashboard_month") || now.getMonth() + 1),
     year: Number(localStorage.getItem("gestormei_dashboard_year") || now.getFullYear()),
   },
+  entriesPeriod: {
+    month: Number(localStorage.getItem("gestormei_entries_month") || now.getMonth() + 1),
+    year: Number(localStorage.getItem("gestormei_entries_year") || now.getFullYear()),
+  },
   productMeta: JSON.parse(localStorage.getItem("gestormei_product_meta") || "{}"),
+  entryProductPreset: null,
   editingProductId: null,
   creatingAccount: false,
 };

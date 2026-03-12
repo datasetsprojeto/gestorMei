@@ -5,6 +5,10 @@
     gap: 16px;
     margin-bottom: 28px;
   }
+  .metrics-grid.metrics-grid-compact {
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 12px;
+  }
   .metric-card {
     background: var(--bg2); border: 1px solid var(--border);
     padding: 20px 22px;

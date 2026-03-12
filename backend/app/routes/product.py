@@ -5,9 +5,11 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.monthly_snapshot import MonthlySnapshot
+from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.security import verify_owner_password
 from app.services.audit_service import log_audit
+from datetime import UTC, datetime
 
 product_bp = Blueprint("products", __name__, url_prefix="/products")
 
@@ -17,6 +19,16 @@ def _workspace_owner_id(current_user_id):
     if not user:
         return None
     return user.owner_id if user.owner_id else user.id
+
+
+def _parse_iso_datetime(value, label):
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            return dt.astimezone(UTC).replace(tzinfo=None)
+        return dt
+    except Exception:
+        raise ValueError(f"{label} inválida")
 
 
 # ======================
@@ -303,6 +315,227 @@ def update_product(product_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Erro ao atualizar produto: {str(e)}"}), 500
+
+
+# ======================
+# REGISTRAR ENTRADA DE MERCADORIA
+# ======================
+@product_bp.route("/entries", methods=["POST"])
+@jwt_required()
+def create_stock_entry():
+    try:
+        current_user_id = int(get_jwt_identity())
+        user_id = _workspace_owner_id(current_user_id)
+        if not user_id:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+
+        data = request.get_json(silent=True) or {}
+        product_id = data.get("product_id")
+        quantity = data.get("quantity")
+        unit_cost = data.get("unit_cost", 0)
+        supplier = str(data.get("supplier", "")).strip()
+        invoice = str(data.get("invoice", "")).strip()
+
+        if not product_id or quantity is None:
+            return jsonify({"error": "Produto e quantidade são obrigatórios"}), 400
+
+        try:
+            product_id = int(product_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Produto inválido"}), 400
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                return jsonify({"error": "Quantidade deve ser maior que zero"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Quantidade inválida"}), 400
+
+        try:
+            unit_cost = float(unit_cost)
+            if unit_cost < 0:
+                return jsonify({"error": "Custo unitário não pode ser negativo"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"error": "Custo unitário inválido"}), 400
+
+        product = Product.query.filter_by(id=product_id, user_id=user_id, is_active=True).with_for_update().first()
+        if not product:
+            return jsonify({"error": "Produto não encontrado"}), 404
+
+        base_product_id = int(product.id)
+        base_product_name = product.name
+        base_product_cost = float(product.cost or 0)
+        effective_unit_cost = unit_cost if unit_cost > 0 else base_product_cost
+        variant_created = False
+        variant_id = None
+
+        if abs(effective_unit_cost - base_product_cost) > 0.0001:
+            variant_name = f"{base_product_name} (custo {effective_unit_cost:.2f})"
+            variant = Product.query.filter_by(
+                name=variant_name,
+                user_id=user_id,
+                is_active=True,
+            ).with_for_update().first()
+
+            if not variant:
+                variant = Product(
+                    name=variant_name,
+                    price=float(product.price or 0),
+                    cost=effective_unit_cost,
+                    stock=0,
+                    min_stock=int(product.min_stock or 0),
+                    max_stock=int(product.max_stock or 100),
+                    user_id=user_id,
+                )
+                db.session.add(variant)
+                db.session.flush()
+                variant_created = True
+
+            product = variant
+            variant_id = int(variant.id)
+            unit_cost = effective_unit_cost
+
+        before_stock = int(product.stock or 0)
+        product.stock = before_stock + quantity
+        if unit_cost > 0:
+            product.cost = unit_cost
+
+        total_cost = unit_cost * quantity
+        details = {
+            "base_product_id": base_product_id,
+            "base_product_name": base_product_name,
+            "product_id": product.id,
+            "product_name": product.name,
+            "quantity": quantity,
+            "unit_cost": unit_cost,
+            "total_cost": total_cost,
+            "supplier": supplier,
+            "invoice": invoice,
+            "stock_before": before_stock,
+            "stock_after": int(product.stock),
+            "variant_created": variant_created,
+            "variant_id": variant_id,
+        }
+
+        log_audit(
+            owner_id=user_id,
+            actor_user_id=current_user_id,
+            action="product.stock_entry",
+            resource_type="product",
+            resource_id=str(product.id),
+            details=details,
+        )
+
+        db.session.commit()
+
+        saved_entry = AuditLog.query.filter(
+            AuditLog.owner_id == user_id,
+            AuditLog.action == "product.stock_entry",
+            AuditLog.resource_id == str(product.id),
+        ).order_by(AuditLog.id.desc()).first()
+        created_at = saved_entry.created_at.isoformat() if saved_entry and saved_entry.created_at else None
+
+        return jsonify({
+            "message": "Entrada registrada com sucesso",
+            "entry": {
+                "created_at": created_at,
+                "base_product_id": base_product_id,
+                "base_product_name": base_product_name,
+                "product_id": product.id,
+                "product_name": product.name,
+                "quantity": quantity,
+                "unit_cost": unit_cost,
+                "total_cost": total_cost,
+                "supplier": supplier,
+                "invoice": invoice,
+                "stock_before": before_stock,
+                "stock_after": int(product.stock),
+                "variant_created": variant_created,
+                "variant_id": variant_id,
+            },
+            "product": product.to_dict(),
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Erro ao registrar entrada: {str(e)}"}), 500
+
+
+# ======================
+# LISTAR ENTRADAS DE MERCADORIA
+# ======================
+@product_bp.route("/entries", methods=["GET"])
+@jwt_required()
+def list_stock_entries():
+    try:
+        current_user_id = int(get_jwt_identity())
+        user_id = _workspace_owner_id(current_user_id)
+        if not user_id:
+            return jsonify({"error": "Usuário não encontrado"}), 404
+
+        limit = min(500, max(1, int(request.args.get("limit", 200))))
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        product_id = request.args.get("product_id")
+
+        query = AuditLog.query.filter(
+            AuditLog.owner_id == user_id,
+            AuditLog.action == "product.stock_entry",
+        )
+
+        if start_date:
+            try:
+                start_dt = _parse_iso_datetime(start_date, "Data inicial")
+            except ValueError as err:
+                return jsonify({"error": str(err)}), 400
+            query = query.filter(AuditLog.created_at >= start_dt)
+
+        if end_date:
+            try:
+                end_dt = _parse_iso_datetime(end_date, "Data final")
+            except ValueError as err:
+                return jsonify({"error": str(err)}), 400
+            query = query.filter(AuditLog.created_at <= end_dt)
+
+        logs = query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+        parsed = []
+        total_quantity = 0
+        total_cost = 0.0
+
+        for log in logs:
+            details = log.get_details() or {}
+            if product_id and str(details.get("product_id")) != str(product_id):
+                continue
+
+            qty = int(details.get("quantity") or 0)
+            line_cost = float(details.get("total_cost") or 0)
+            total_quantity += qty
+            total_cost += line_cost
+
+            parsed.append({
+                "id": log.id,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+                "product_id": details.get("product_id"),
+                "product_name": details.get("product_name") or "Sem produto",
+                "quantity": qty,
+                "unit_cost": float(details.get("unit_cost") or 0),
+                "total_cost": line_cost,
+                "supplier": details.get("supplier") or "",
+                "invoice": details.get("invoice") or "",
+                "stock_before": details.get("stock_before"),
+                "stock_after": details.get("stock_after"),
+                "actor_user_id": log.actor_user_id,
+            })
+
+        return jsonify({
+            "entries": parsed,
+            "summary": {
+                "total_entries": len(parsed),
+                "total_quantity": total_quantity,
+                "total_cost": total_cost,
+            },
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro ao listar entradas: {str(e)}"}), 500
 
 
 # ======================

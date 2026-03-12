@@ -5,6 +5,7 @@ const resetProductForm = (...args) => window.resetProductForm(...args);
 const filterVendas = (...args) => window.filterVendas(...args);
 const filterEstoque = (...args) => window.filterEstoque(...args);
 const syncSalePrice = (...args) => window.syncSalePrice(...args);
+const toggleEntryProductFields = (...args) => window.toggleEntryProductFields(...args);
 const doLogin = (...args) => window.doLogin(...args);
 const doRegister = (...args) => window.doRegister(...args);
 const showApp = (...args) => window.showApp(...args);
@@ -14,6 +15,9 @@ const doLogout = (...args) => window.doLogout(...args);
 function openModal(id) {
   if (id === "modal-venda" || id === "modal-entrada") {
     populateProductSelectors();
+  }
+  if (id === "modal-entrada") {
+    toggleEntryProductFields();
   }
   document.getElementById(id).classList.add("open");
 }
@@ -51,7 +55,15 @@ function toast(msg) {
   setTimeout(() => t.classList.remove("show"), 3000);
 }
 
+function abrirNovaEntrada() {
+  if (window.GestorMei?.state) {
+    window.GestorMei.state.entryProductPreset = "__new__";
+  }
+  openModal("modal-entrada");
+}
+
 document.getElementById("v-produto").addEventListener("change", syncSalePrice);
+document.getElementById("e-produto").addEventListener("change", toggleEntryProductFields);
 document.getElementById("login-pass").addEventListener("keydown", (e) => {
   if (e.key === "Enter") doLogin();
 });
@@ -72,6 +84,7 @@ Object.assign(window, {
   closeModal,
   setChip,
   toast,
+  abrirNovaEntrada,
 });
 
 export {};
